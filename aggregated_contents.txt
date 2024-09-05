@@ -1,0 +1,626 @@
+File: Cargo.toml
+----------------------------------------
+[package]
+name = "conag"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "^4.3", features = ["derive"] }
+toml = "^0.7"
+walkdir = "^2.3"
+anyhow = "^1.0"
+rayon = "^1.7"
+serde = { version = "^1.0", features = ["derive"] }
+log = "^0.4"
+env_logger = "^0.10"
+
+[dev-dependencies]
+assert_cmd = "^2.0"
+predicates = "^2.1"
+tempfile = "^3.2"
+
+
+
+
+
+
+File: tests/integration_tests.rs
+----------------------------------------
+use assert_cmd::Command;
+use predicates::prelude::*;
+use tempfile::TempDir;
+use std::fs;
+use std::path::Path;
+
+#[test]
+fn test_conag_run() {
+    let temp_dir = TempDir::new().unwrap();
+    let input_dir = temp_dir.path().join("input");
+    fs::create_dir(&input_dir).unwrap();
+    fs::write(input_dir.join("test.txt"), "Test content").unwrap();
+
+    // Create a mock config file
+    let config_content = r#"
+        [general]
+        default_output_dir = "output"
+
+        [ignore]
+        global = [".git"]
+        project_specific = {}
+
+        [output]
+        max_file_size = 1048576
+    "#;
+    let config_path = create_mock_config(config_content);
+
+    let mut cmd = Command::cargo_bin("conag").unwrap();
+    let assert = cmd
+        .arg("--input")
+        .arg(&input_dir)
+        .arg("--output")
+        .arg(temp_dir.path().join("output"))
+        .assert();
+
+    // Print the output for debugging
+    println!("Command output: {:?}", assert.get_output());
+
+    // Check if the output directory exists
+    let output_dir = temp_dir.path().join("output");
+    println!("Output directory exists: {}", output_dir.exists());
+
+    // List contents of the temp directory
+    println!("Contents of temp directory:");
+    for entry in fs::read_dir(temp_dir.path()).unwrap() {
+        let entry = entry.unwrap();
+        println!("{:?}", entry.path());
+    }
+
+    // Now assert that the output file exists
+    assert!(temp_dir.path().join("output").join("aggregated_content.txt").exists(),
+            "Output file does not exist");
+
+    // Check the content of the output file
+    if temp_dir.path().join("output").join("aggregated_content.txt").exists() {
+        let content = fs::read_to_string(temp_dir.path().join("output").join("aggregated_content.txt")).unwrap();
+        println!("Output file content:\n{}", content);
+    }
+
+    assert
+        .success()
+        .stdout(predicate::str::contains("Aggregation complete"));
+
+    // Clean up the mock config
+    fs::remove_file(config_path).unwrap();
+}
+
+fn create_mock_config(content: &str) -> std::path::PathBuf {
+    let home = std::env::var("HOME").expect("HOME environment variable not set");
+    let config_dir = Path::new(&home).join(".conag");
+    fs::create_dir_all(&config_dir).unwrap();
+    let config_path = config_dir.join("config.toml");
+    fs::write(&config_path, content).unwrap();
+    config_path
+}
+
+
+File: config.toml
+----------------------------------------
+[general]
+# Replace with your desired output directory absolute path after your User directory
+default_output_dir = "Desktop/conag_output"
+
+[ignore]
+global = [".git", ".gitignore", "target", ".DS_Store", ".vscode", "LICENSE"]
+project_specific = {}
+
+# Rust Projects configs
+[ignore.rust]
+directories = []
+files = ["Cargo.lock"]
+extensions = ["rlib", "rmeta"]
+
+# Python Projects configs
+[ignore.python]
+directories = ["__pycache__", ".venv"]
+files = []
+extensions = ["pyc", "pyo"]
+
+[ignore.poetry]
+directories = [".venv"]
+files = ["poetry.lock"]
+extensions = []
+
+# Node Projects configs
+[ignore.node]
+directories = ["node_modules"]
+files = ["package-lock.json", "yarn.lock"]
+extensions = []
+
+# Golang Projects configs
+[ignore.golang]
+directories = ["vendor"]
+files = ["go.sum"]
+extensions = []
+
+[output]
+include_binary = false
+max_file_size = 5242880  # 5MB in bytes
+
+
+File: src/aggregator.rs
+----------------------------------------
+use crate::config::Config;
+use anyhow::{Context, Result};
+use rayon::prelude::*;
+use std::path::{Path, PathBuf};
+use walkdir::WalkDir;
+use std::fs;
+use log::info;
+
+pub struct Aggregator {
+    config: Config,
+    input_dir: PathBuf,
+}
+
+#[derive(Debug)]
+pub struct FileContent {
+    pub path: PathBuf,
+    pub content: String,
+}
+
+impl Aggregator {
+    pub fn new(config: Config, input_dir: PathBuf) -> Self {
+        Self { config, input_dir }
+    }
+
+    pub fn aggregate(&self) -> Result<Vec<FileContent>> {
+        info!("Starting file aggregation from: {}", self.input_dir.display());
+        let result: Result<Vec<FileContent>> = WalkDir::new(&self.input_dir)
+            .into_iter()
+            .par_bridge()
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| self.should_process(entry.path()))
+            .map(|entry| {
+                info!("Processing file: {}", entry.path().display());
+                self.process_file(entry.path())
+            })
+            .collect();
+        
+        let files = result?;
+        info!("Aggregation complete. Total files processed: {}", files.len());
+        Ok(files)
+    }
+
+    fn should_process(&self, path: &Path) -> bool {
+        let relative_path = path.strip_prefix(&self.input_dir).unwrap_or(path);
+        
+        let should_process = !self.config.ignore.global.iter().any(|ignored| {
+            relative_path.components().any(|component| {
+                component.as_os_str().to_str().unwrap_or("") == ignored
+            })
+        }) &&
+        !self.is_ignored_by_project_type(relative_path);
+    
+        if !should_process {
+            info!("Skipping file due to ignore rules: {}", path.display());
+        }
+    
+        should_process
+    }
+
+    fn is_ignored_by_project_type(&self, path: &Path) -> bool {
+        for (_, project_config) in &self.config.ignore.project_specific {
+            if project_config.directories.iter().any(|dir| path.starts_with(dir)) ||
+               project_config.files.contains(&path.to_string_lossy().to_string()) ||
+               path.extension().map_or(false, |ext| project_config.extensions.contains(&ext.to_string_lossy().to_string()))
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn process_file(&self, path: &Path) -> Result<FileContent> {
+        let metadata = fs::metadata(path)
+            .with_context(|| format!("Failed to read metadata for file: {}", path.display()))?;
+
+        if metadata.len() > self.config.output.max_file_size {
+            return Ok(FileContent {
+                path: path.to_path_buf(),
+                content: format!("File size ({} bytes) exceeds maximum allowed size.", metadata.len()),
+            });
+        }
+
+        match fs::read_to_string(path) {
+            Ok(content) => Ok(FileContent {
+                path: path.to_path_buf(),
+                content,
+            }),
+            Err(_) => Ok(FileContent {
+                path: path.to_path_buf(),
+                content: format!("Binary file ({} bytes)", metadata.len()),
+            }),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn create_test_config() -> Config {
+        Config {
+            general: crate::config::GeneralConfig {
+                default_output_dir: "~/Desktop/conag_output".to_string(),
+            },
+            ignore: crate::config::IgnoreConfig {
+                global: vec![".git".to_string(), ".DS_Store".to_string()],
+                project_specific: std::collections::HashMap::new(),
+            },
+            output: crate::config::OutputConfig {
+                max_file_size: 1048576,
+            },
+        }
+    }
+
+    #[test]
+    fn test_aggregator_should_process() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = create_test_config();
+        let aggregator = Aggregator::new(config, temp_dir.path().to_path_buf());
+
+        assert!(aggregator.should_process(temp_dir.path().join("file.txt").as_path()));
+        assert!(!aggregator.should_process(temp_dir.path().join(".git").join("config").as_path()));
+        assert!(!aggregator.should_process(temp_dir.path().join(".DS_Store").as_path()));
+    }
+
+    #[test]
+    fn test_aggregator_process_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = create_test_config();
+        let aggregator = Aggregator::new(config, temp_dir.path().to_path_buf());
+
+        let test_file_path = temp_dir.path().join("test.txt");
+        fs::write(&test_file_path, "Test content").unwrap();
+
+        let result = aggregator.process_file(&test_file_path).unwrap();
+        assert_eq!(result.content, "Test content");
+    }
+}
+
+
+File: src/config.rs
+----------------------------------------
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::collections::HashMap;
+use log::info;
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Config {
+    pub general: GeneralConfig,
+    pub ignore: IgnoreConfig,
+    pub output: OutputConfig,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GeneralConfig {
+    pub default_output_dir: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct IgnoreConfig {
+    pub global: Vec<String>,
+    pub project_specific: HashMap<String, ProjectIgnoreConfig>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ProjectIgnoreConfig {
+    pub directories: Vec<String>,
+    pub files: Vec<String>,
+    pub extensions: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct OutputConfig {
+    pub max_file_size: u64,
+}
+
+impl Config {
+    const CONFIG_DIR: &'static str = ".conag";
+    const CONFIG_FILE: &'static str = "config.toml";
+
+    pub fn load() -> Result<Self> {
+        let config_path = Self::get_config_path()?;
+        Self::ensure_config_exists(&config_path)?;
+        
+        let config_str = fs::read_to_string(&config_path)
+            .with_context(|| format!("Failed to read config file: {}", config_path.display()))?;
+        
+        let mut config: Config = toml::from_str(&config_str)
+            .with_context(|| format!("Failed to parse config file: {}", config_path.display()))?;
+
+        // Always expand the path in default_output_dir
+        config.general.default_output_dir = Self::expand_path(&config.general.default_output_dir)?;
+
+        Ok(config)
+    }
+
+    fn expand_path(path: &str) -> Result<String> {
+        if path.starts_with("~/") {
+            let home = std::env::var("HOME")
+                .context("HOME environment variable is not set. This application is designed for macOS.")?;
+            Ok(Path::new(&home).join(&path[2..]).to_string_lossy().into_owned())
+        } else {
+            Ok(PathBuf::from(path).canonicalize()?.to_string_lossy().into_owned())
+        }
+    }
+
+    fn get_config_path() -> Result<PathBuf> {
+        // First, check if config.toml exists in the current directory
+        let current_dir_config = std::env::current_dir()?.join(Self::CONFIG_FILE);
+        if current_dir_config.exists() {
+            info!("Using config file from current directory: {}", current_dir_config.display());
+            return Ok(current_dir_config);
+        }
+
+        // If not found in current directory, check in ~/.conag/
+        let home = std::env::var("HOME")
+            .context("HOME environment variable is not set. This application is designed for macOS.")?;
+        let home_config = Path::new(&home).join(Self::CONFIG_DIR).join(Self::CONFIG_FILE);
+        
+        if home_config.exists() {
+            info!("Using config file from home directory: {}", home_config.display());
+            Ok(home_config)
+        } else {
+            // If not found in either location, default to current directory for creation
+            info!("No existing config found. Will create in current directory: {}", current_dir_config.display());
+            Ok(current_dir_config)
+        }
+    }
+
+    fn ensure_config_exists(config_path: &Path) -> Result<()> {
+        if !config_path.exists() {
+            let config_dir = config_path.parent().unwrap();
+            fs::create_dir_all(config_dir)
+                .context("Failed to create config directory")?;
+            
+            let default_config = Config {
+                general: GeneralConfig {
+                    default_output_dir: "~/Desktop/conag_output".to_string(),
+                },
+                ignore: IgnoreConfig {
+                    global: vec![".git".to_string(), ".DS_Store".to_string()],
+                    project_specific: Default::default(),
+                },
+                output: OutputConfig {
+                    max_file_size: 1048576, // 1MB
+                },
+            };
+
+            let config_str = toml::to_string_pretty(&default_config)
+                .context("Failed to serialize default config")?;
+
+            fs::write(config_path, config_str)
+                .context("Failed to write default config file")?;
+        }
+        Ok(())
+    }
+
+    pub fn get_output_dir(&self) -> PathBuf {
+        PathBuf::from(&self.general.default_output_dir)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_config_load() {
+        let temp_dir = TempDir::new().unwrap();
+        std::env::set_var("HOME", temp_dir.path());
+
+        // Create a mock config file in the temp directory
+        let config_content = r#"
+    [general]
+    default_output_dir = "~/Desktop/conag_output"
+
+    [ignore]
+    global = [".git", ".DS_Store"]
+    project_specific = {}
+
+    [output]
+    max_file_size = 1048576
+    "#;
+        let config_path = temp_dir.path().join(Config::CONFIG_FILE);
+        std::fs::write(&config_path, config_content).unwrap();
+
+        // Override the current directory to be the temp directory
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let config = Config::load().unwrap();
+
+        // The default_output_dir should be the expanded path, not the original "~/" value
+        let expected_output_dir = temp_dir.path().join("Desktop").join("conag_output");
+        assert_eq!(config.general.default_output_dir, expected_output_dir.to_str().unwrap());
+        assert_eq!(config.ignore.global, vec![".git", ".DS_Store"]);
+        assert_eq!(config.output.max_file_size, 1048576);
+
+        // Clean up
+        std::env::remove_var("HOME");
+        std::env::set_current_dir("/").unwrap(); // Reset current directory
+    }
+
+    #[test]
+    fn test_get_output_dir() {
+        let temp_dir = TempDir::new().unwrap();
+        std::env::set_var("HOME", temp_dir.path());
+
+        let config = Config {
+            general: GeneralConfig {
+                default_output_dir: temp_dir.path().join("Desktop").join("conag_output").to_str().unwrap().to_string(),
+            },
+            ignore: IgnoreConfig {
+                global: vec![],
+                project_specific: HashMap::new(),
+            },
+            output: OutputConfig {
+                max_file_size: 1048576,
+            },
+        };
+
+        let expected_path = temp_dir.path().join("Desktop").join("conag_output");
+        assert_eq!(config.get_output_dir(), expected_path);
+
+        std::env::remove_var("HOME");
+    }
+}
+
+
+File: src/output.rs
+----------------------------------------
+use crate::aggregator::FileContent;
+use std::path::Path;
+
+pub fn format_output(files: &[FileContent], root_dir: &Path) -> String {
+    let mut output = String::new();
+
+    // Add metadata
+    output.push_str("# Conag Output\n");
+    output.push_str(&format!("Total Files: {}\n", files.len()));
+    
+    // TODO: Add more metadata (directories, file types)
+
+    for file in files {
+        let relative_path = file.path.strip_prefix(root_dir).unwrap_or(&file.path);
+        
+        output.push_str("\n[FILE_START]\n");
+        output.push_str(&format!("## File: {}\n", relative_path.display()));
+        output.push_str(&format!("Length: {} bytes\n\n", file.content.len()));
+        
+        output.push_str("```\n");
+        output.push_str(&file.content);
+        output.push_str("\n```\n");
+        
+        output.push_str("[FILE_END]\n");
+    }
+
+    output
+}
+
+
+File: src/main.rs
+----------------------------------------
+mod config;
+mod aggregator;
+mod output;
+
+use anyhow::{Context, Result};
+use clap::Parser;
+use std::path::PathBuf;
+
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    /// Input directory to aggregate
+    #[arg(short, long)]
+    input: PathBuf,
+
+    /// Output directory for the aggregated content
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// Project type for specific ignore rules
+    #[arg(short, long)]
+    project_type: Option<String>,
+}
+
+fn main() -> Result<()> {
+    env_logger::init();
+    let cli = Cli::parse();
+
+    let config = config::Config::load()
+        .context("Failed to load configuration")?;
+
+    let output_dir = cli.output.unwrap_or_else(|| config.get_output_dir());
+    std::fs::create_dir_all(&output_dir)
+        .context("Failed to create output directory")?;
+
+    let aggregator = aggregator::Aggregator::new(config, cli.input.clone());
+    let files = aggregator.aggregate()
+        .context("Failed to aggregate files")?;
+
+    let output = output::format_output(&files, &cli.input);
+
+    let output_file = output_dir.join("aggregated_content.txt");
+    std::fs::write(&output_file, output)
+        .context("Failed to write output file")?;
+
+    println!("Aggregation complete. Output written to: {}", output_file.display());
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use assert_cmd::Command;
+    use predicates::prelude::*;
+    use tempfile::TempDir;
+    use std::fs;
+    use std::env;
+
+    #[test]
+    fn test_cli() {
+        let temp_dir = TempDir::new().unwrap();
+        let input_dir = temp_dir.path().join("input");
+        fs::create_dir(&input_dir).unwrap();
+        fs::write(input_dir.join("test.txt"), "Test content").unwrap();
+
+        // Set HOME environment variable
+        env::set_var("HOME", temp_dir.path());
+
+        // Create a valid config file
+        let config_content = r#"
+    [general]
+    default_output_dir = "output"
+
+    [ignore]
+    global = [".git"]
+    project_specific = {}
+
+    [output]
+    max_file_size = 1048576
+    "#;
+        let config_dir = temp_dir.path().join(".conag");
+        fs::create_dir_all(&config_dir).unwrap();
+        fs::write(config_dir.join("config.toml"), config_content).unwrap();
+
+        // Set the current directory to the temp directory
+        env::set_current_dir(temp_dir.path()).unwrap();
+
+        let mut cmd = Command::cargo_bin("conag").unwrap();
+        let assert = cmd
+            .arg("--input")
+            .arg(&input_dir)
+            .arg("--output")
+            .arg(temp_dir.path().join("output"))
+            .assert();
+
+        assert
+            .success()
+            .stdout(predicate::str::contains("Aggregation complete"));
+
+        assert!(temp_dir.path().join("output").join("aggregated_content.txt").exists());
+
+        // Clean up: remove HOME environment variable
+        env::remove_var("HOME");
+    }
+}
+
+
