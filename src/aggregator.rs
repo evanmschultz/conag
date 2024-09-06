@@ -6,8 +6,11 @@ use std::path::PathBuf;
 pub fn aggregate_contents(files: &[PathBuf]) -> io::Result<HashMap<PathBuf, String>> {
     let mut contents = HashMap::new();
     for file in files {
-        let content = fs::read_to_string(file)?;
-        contents.insert(file.file_name().unwrap().to_owned().into(), content);
+        if let Ok(content) = fs::read_to_string(file) {
+            contents.insert(file.file_name().unwrap().to_owned().into(), content);
+        } else {
+            eprintln!("Skipping file {:?} due to invalid UTF-8", file);
+        }
     }
     Ok(contents)
 }

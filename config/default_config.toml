@@ -1,0 +1,37 @@
+# Default configuration for conag
+
+# The directory to scan for files
+input_dir = "."
+
+# The directory where the output will be saved
+output_dir = "./conag_output"
+
+# Patterns for files to ignore
+ignore_patterns = [
+    "target/**/*",  # Rust build output
+    "Cargo.lock",   # Rust dependency lock file
+    "**/Cargo.lock", # Rust dependency lock file search
+    "**/LICENSE",      # License
+    "**/*.rs.bk",   # Rust backup files
+    ".git/**/*",    # Git directory
+    ".gitignore",   # Git ignore file
+    "**/.DS_Store", # macOS system files
+    "**/thumbs.db", # Windows thumbnail cache files
+    "**/*.swp",     # Vim swap files
+    "**/*~",        # Backup files
+    "*_conag_output.txt",  # Output file
+]
+
+# Specify the project type (optional)
+project_type = "rust"
+
+# Project-specific ignore patterns
+[project_specific_ignores]
+rust = [
+    "target/**/*",
+    "Cargo.lock",
+    "**/*.rs.bk"
+]
+
+# Patterns for hidden files to include (empty by default)
+include_hidden_patterns = []

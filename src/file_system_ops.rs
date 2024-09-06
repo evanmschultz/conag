@@ -8,10 +8,16 @@ pub fn list_files(dir: &Path) -> io::Result<Vec<PathBuf>> {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
-            if path.is_file() {
-                files.push(path);
-            } else if path.is_dir() {
+
+            // Skip directories like .git, target, etc.
+            if path.is_dir() && !path.is_symlink() {
+                if path.ends_with(".git") || path.ends_with("target") || path.ends_with("node_modules") {
+                    eprintln!("Skipping directory: {:?}", path);
+                    continue;
+                }
                 files.extend(list_files(&path)?);
+            } else if path.is_file() && !path.is_symlink() {
+                files.push(path);
             }
         }
     }
