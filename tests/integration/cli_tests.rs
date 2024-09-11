@@ -259,39 +259,40 @@ mod tests {
         assert!(output.contains("<<<File: test.txt>>>"));
     }
 
-#[test]
-fn test_output_file_extension() {
-    let markdown_cli = Cli {
-        config: "config.toml".to_string(),
-        include_hidden: None,
-        plain_text: false,
-    };
+    #[test]
+    fn test_output_file_extension() {
+        let markdown_cli = Cli {
+            config: "config.toml".to_string(),
+            include_hidden: None,
+            plain_text: false,
+        };
 
-    let plain_text_cli = Cli {
-        config: "config.toml".to_string(),
-        include_hidden: None,
-        plain_text: true,
-    };
+        let plain_text_cli = Cli {
+            config: "config.toml".to_string(),
+            include_hidden: None,
+            plain_text: true,
+        };
 
-    let test_config = crate::config::Config {
-        input_dir: ".".to_string(),
-        output_dir: "output".to_string(),
-        ignore_patterns: vec![],
-        include_hidden_patterns: vec![],
-        project_specific_ignores: HashMap::new(),
-        project_type: None,
-    };
+        let test_config = crate::config::Config {
+            input_dir: ".".to_string(),
+            output_dir: "output".to_string(),
+            ignore_patterns: vec![],
+            include_hidden_patterns: vec![],
+            project_specific_ignores: HashMap::new(),
+            project_type: None,
+        };
 
-    let input_path = PathBuf::from("test_dir");
-    let root_dir_name = input_path.file_name().unwrap().to_str().unwrap();
+        let input_path = PathBuf::from("test_dir");
+        let root_dir_name = input_path.file_name().unwrap().to_str().unwrap();
 
-    // Test Markdown extension
-    let markdown_extension = if !markdown_cli.plain_text { "md" } else { "txt" };
-    let markdown_file_name = format!("{}_conag_output.{}", root_dir_name, markdown_extension);
-    assert_eq!(markdown_file_name, "test_dir_conag_output.md");
+        // Test Markdown extension
+        let markdown_extension = if !markdown_cli.plain_text { "md" } else { "txt" };
+        let markdown_file_name = format!("{}_conag_output.{}", root_dir_name, markdown_extension);
+        assert_eq!(markdown_file_name, "test_dir_conag_output.md");
 
-    // Test plain text extension
-    let plain_text_extension = if !plain_text_cli.plain_text { "md" } else { "txt" };
-    let plain_text_file_name = format!("{}_conag_output.{}", root_dir_name, plain_text_extension);
-    assert_eq!(plain_text_file_name, "test_dir_conag_output.txt");
+        // Test plain text extension
+        let plain_text_extension = if !plain_text_cli.plain_text { "md" } else { "txt" };
+        let plain_text_file_name = format!("{}_conag_output.{}", root_dir_name, plain_text_extension);
+        assert_eq!(plain_text_file_name, "test_dir_conag_output.txt");
+    }
 }

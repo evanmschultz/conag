@@ -48,12 +48,17 @@ fn test_format_output_text() {
     contents.insert(PathBuf::from("file1.txt"), "Content of file 1".to_string());
     contents.insert(PathBuf::from("file2.txt"), "Content of file 2".to_string());
     
-    let result = format_output(&contents, false);
+    let project_name = "Test Project";
+    let result = format_output(project_name, &contents, false);
     
+    assert!(result.contains("Project: Test Project"));
+    assert!(result.contains("========================================"));
     assert!(result.contains("File: file1.txt"));
-    assert!(result.contains("Content of file 1"));
+    assert!(result.contains("========================================"));
+    assert!(result.contains("```text\nContent of file 1\n```"));
     assert!(result.contains("File: file2.txt"));
-    assert!(result.contains("Content of file 2"));
+    assert!(result.contains("========================================"));
+    assert!(result.contains("```text\nContent of file 2\n```"));
 }
 
 #[test]
@@ -62,10 +67,12 @@ fn test_format_output_markdown() {
     contents.insert(PathBuf::from("file1.txt"), "Content of file 1".to_string());
     contents.insert(PathBuf::from("file2.txt"), "Content of file 2".to_string());
     
-    let result = format_output(&contents, true);
+    let project_name = "Test Project";
+    let result = format_output(project_name, &contents, true);
     
-    assert!(result.contains("# file1.txt"));
-    assert!(result.contains("Content of file 1"));
-    assert!(result.contains("# file2.txt"));
-    assert!(result.contains("Content of file 2"));
+    assert!(result.contains("# Project: Test Project"));
+    assert!(result.contains("## File: file1.txt"));
+    assert!(result.contains("```text\nContent of file 1\n```"));
+    assert!(result.contains("## File: file2.txt"));
+    assert!(result.contains("```text\nContent of file 2\n```"));
 }
