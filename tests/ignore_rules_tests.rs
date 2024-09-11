@@ -2,9 +2,6 @@ use conag::ignore_rules::{IgnoreRules, apply_ignore_rules};
 use conag::config::Config;
 use std::path::PathBuf;
 use std::collections::{HashMap, HashSet};
-// use tempfile::TempDir;
-// use conag::file_system_ops::list_files;
-// use std::fs::{self, File};
 
 fn create_test_config(
     ignore_patterns: Vec<String>,
@@ -133,43 +130,3 @@ fn test_project_specific_ignore_rules() {
     assert!(result.contains(&PathBuf::from("src/main.rs")));
 }
 
-// #[test]
-// #[cfg(target_os = "macos")]
-// fn test_list_files_includes_symlinks() {
-//     let temp_dir = TempDir::new().unwrap();
-//     let base_path = temp_dir.path();
-
-//     // Create a file structure with a symlink
-//     fs::create_dir(base_path.join("subdir")).unwrap();
-//     File::create(base_path.join("file1.txt")).unwrap();
-//     File::create(base_path.join("subdir").join("file2.txt")).unwrap();
-//     std::os::unix::fs::symlink("file1.txt", base_path.join("symlink.txt")).unwrap();
-
-//     let files = list_files(base_path).unwrap();
-
-//     assert_eq!(files.len(), 3);
-//     assert!(files.contains(&base_path.join("file1.txt")));
-//     assert!(files.contains(&base_path.join("subdir").join("file2.txt")));
-//     assert!(files.contains(&base_path.join("symlink.txt")));
-// }
-
-// #[test]
-// #[cfg(target_os = "macos")]
-// fn test_list_files_includes_directory_symlinks() {
-//     let temp_dir = TempDir::new().unwrap();
-//     let base_path = temp_dir.path();
-
-//     // Create a file structure with a directory symlink
-//     fs::create_dir(base_path.join("dir1")).unwrap();
-//     fs::create_dir(base_path.join("dir2")).unwrap();
-//     File::create(base_path.join("dir1").join("file1.txt")).unwrap();
-//     File::create(base_path.join("dir2").join("file2.txt")).unwrap();
-//     std::os::unix::fs::symlink("dir1", base_path.join("symlink_dir")).unwrap();
-
-//     let files = list_files(base_path).unwrap();
-
-//     assert_eq!(files.len(), 3);
-//     assert!(files.contains(&base_path.join("dir1").join("file1.txt")));
-//     assert!(files.contains(&base_path.join("dir2").join("file2.txt")));
-//     assert!(files.contains(&base_path.join("symlink_dir").join("file1.txt")));
-// }

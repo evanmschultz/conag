@@ -14,6 +14,9 @@ pub struct Cli {
 
     #[arg(long)]
     pub include_hidden: Option<Vec<String>>,
+
+    #[arg(long, help = "Use plain text output format instead of Markdown")]
+    pub plain_text: bool,
 }
 
 pub fn run(cli: Cli) -> Result<()> {
@@ -29,6 +32,12 @@ pub fn run(cli: Cli) -> Result<()> {
         PathBuf::from(&config.input_dir)
     };
     
+    // Get the project name from the root directory
+    let project_name = input_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("Unknown Project");
+    
     let files: HashSet<PathBuf> = crate::file_system_ops::list_files(&input_path)?;
     
     let ignore_rules = crate::ignore_rules::IgnoreRules::new(&config);
@@ -36,7 +45,9 @@ pub fn run(cli: Cli) -> Result<()> {
     
     let contents = crate::aggregator::aggregate_contents(&filtered_files, &input_path)?;
 
-    let output = crate::aggregator::format_output(&contents, false);
+    // Use Markdown by default, unless --plain-text is specified
+    let use_markdown = !cli.plain_text;
+    let output = crate::aggregator::format_output(project_name, &contents, use_markdown);
 
     // Ensure the output directory exists
     let output_dir = PathBuf::from(&config.output_dir);
@@ -46,7 +57,8 @@ pub fn run(cli: Cli) -> Result<()> {
     let root_dir_name = input_path.file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("unknown");
-    let output_file_name = format!("{}_conag_output.txt", root_dir_name);
+    let file_extension = if use_markdown { "md" } else { "txt" };
+    let output_file_name = format!("{}_conag_output.{}", root_dir_name, file_extension);
     let output_path = output_dir.join(&output_file_name);
 
     // Open the file in write mode, which truncates the file if it already exists
