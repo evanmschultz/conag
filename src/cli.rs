@@ -5,22 +5,60 @@ use std::io::Write;
 use clap::Parser;
 use anyhow::Result;
 use std::collections::HashSet;
+use crate::config::{read_config, generate_default_config};
 
+/// Represents the command-line interface structure for the application.
+///
+/// This struct is derived from `clap::Parser` and defines the CLI arguments
+/// that the application accepts.
 #[derive(Parser)]
 #[command(author, version, about)]
 pub struct Cli {
+    /// Path to the configuration file (optional)
     #[arg(short, long)]
-    pub config: String,
+    pub config: Option<String>,
 
+    /// Generate default config file
+    #[arg(long)]
+    pub generate_config: bool,
+
+    /// Optional list of hidden files or directories to include.
     #[arg(long)]
     pub include_hidden: Option<Vec<String>>,
 
+    /// Flag to use plain text output format instead of Markdown.
     #[arg(long, help = "Use plain text output format instead of Markdown")]
     pub plain_text: bool,
 }
 
+/// Runs the main CLI application.
+///
+/// This function performs the following steps:
+/// 1. Generates a default config file if requested.
+/// 2. Reads and updates the configuration based on CLI arguments.
+/// 3. Determines the input path and project name.
+/// 4. Lists and filters files based on ignore rules.
+/// 5. Aggregates contents of the filtered files.
+/// 6. Formats the output (either as Markdown or plain text).
+/// 7. Creates the output directory if it doesn't exist.
+/// 8. Generates the output file name.
+/// 9. Writes the formatted content to the output file.
+///
+/// # Arguments
+///
+/// * `cli` - The parsed CLI arguments.
+///
+/// # Returns
+///
+/// Returns a `Result<()>`, which is `Ok(())` if the operation was successful,
+/// or an error if any step in the process failed.
 pub fn run(cli: Cli) -> Result<()> {
-    let mut config = crate::config::read_config(cli.config.as_str())?;
+    if cli.generate_config {
+        generate_default_config()?;
+        return Ok(());
+    }
+
+    let mut config = read_config(cli.config.as_deref())?;
 
     if let Some(include_hidden) = cli.include_hidden {
         config.include_hidden_patterns = include_hidden;
