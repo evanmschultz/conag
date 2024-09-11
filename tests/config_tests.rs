@@ -2,6 +2,8 @@ use conag::config::{read_config, Config, generate_default_config};
 use std::fs;
 use tempfile::{NamedTempFile, TempDir};
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::env;
 
 #[test]
 fn test_read_config_with_include_hidden_patterns() {
@@ -125,4 +127,28 @@ fn test_generate_default_config() {
 
     // Clean up: unset the HOME environment variable
     std::env::remove_var("HOME");
+}
+
+#[test]
+fn test_default_config_path() {
+    let home_dir = env::var("HOME").expect("HOME environment variable not set");
+    let expected_path = PathBuf::from(home_dir).join(".config").join("conag").join("config.toml");
+    assert_eq!(conag::config::Config::default_config_path().unwrap(), expected_path);
+}
+
+#[test]
+fn test_config_not_found_error() {
+    // Temporarily set HOME to a non-existent directory
+    env::set_var("HOME", "/tmp/non_existent_dir");
+    
+    let result = conag::config::read_config(None);
+    assert!(result.is_err());
+    
+    let error_message = result.unwrap_err().to_string();
+    assert!(error_message.contains("Config file not found"));
+    assert!(error_message.contains("To generate a default config, run:"));
+    assert!(error_message.contains("conag --generate-config"));
+    
+    // Reset HOME
+    env::remove_var("HOME");
 }

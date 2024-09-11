@@ -296,3 +296,73 @@ mod tests {
         assert_eq!(plain_text_file_name, "test_dir_conag_output.txt");
     }
 }
+
+#[test]
+#[cfg(feature = "dev")]
+fn test_custom_config_path_in_dev_mode() {
+    let args = vec!["conag", "--config", "/custom/path/config.toml"];
+    let cli = Cli::parse_from(args);
+    assert_eq!(cli.config, Some("/custom/path/config.toml".to_string()));
+}
+
+#[test]
+#[cfg(not(feature = "dev"))]
+fn test_no_custom_config_path_in_release_mode() {
+    let args = vec!["conag", "--config", "/custom/path/config.toml"];
+    let result = Cli::try_parse_from(args);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_cli_parsing() {
+    let args = vec!["conag", "--generate-config", "--plain-text"];
+    let cli = Cli::parse_from(args);
+    assert!(cli.generate_config);
+    assert!(cli.plain_text);
+    assert!(cli.config.is_none());
+    assert!(cli.include_hidden.is_none());
+}
+
+#[test]
+fn test_run_generate_config() {
+    let temp_dir = TempDir::new().unwrap();
+    std::env::set_var("HOME", temp_dir.path());
+
+    let cli = Cli {
+        config: None,
+        generate_config: true,
+        include_hidden: None,
+        plain_text: false,
+    };
+
+    run(cli).unwrap();
+
+    let config_path = Config::default_config_path().unwrap();
+    assert!(config_path.exists());
+
+    std::env::remove_var("HOME");
+}
+
+#[test]
+fn test_run_with_custom_config() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("custom_config.toml");
+    fs::write(&config_path, "input_dir = \".\"\noutput_dir = \"/tmp/output\"").unwrap();
+
+    let cli = Cli {
+        config: Some(config_path.to_str().unwrap().to_string()),
+        generate_config: false,
+        include_hidden: None,
+        plain_text: false,
+    };
+
+    if cfg!(feature = "dev") {
+        run(cli).unwrap();
+        // Add assertions here to check if the custom config was used
+    } else {
+        // In release mode, custom config should be ignored
+        let result = run(cli);
+        assert!(result.is_ok());
+        // Add assertions here to check if the default config was used instead
+    }
+}

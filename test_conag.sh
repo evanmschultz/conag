@@ -1,50 +1,81 @@
 #!/bin/bash
 
-# Create a temporary directory for testing
-TEST_DIR="/tmp/conag_test_$(date +%Y%m%d_%H%M%S)"
-mkdir -p "$TEST_DIR"
-echo "Created test directory: $TEST_DIR"
+# Set up temporary directory on the desktop
+DESKTOP_DIR="$HOME/Desktop"
+TEMP_DIR="$DESKTOP_DIR/conag_temp"
+TEST_PROJECT_DIR="$TEMP_DIR/test_project"
+TEST_OUTPUT_DIR="$TEMP_DIR/test_output"
+TEST_CONFIG="$TEMP_DIR/test_config.toml"
 
-# Create a sample project structure
-mkdir -p "$TEST_DIR/src" "$TEST_DIR/docs" "$TEST_DIR/.git"
-echo "console.log('Hello, world!');" > "$TEST_DIR/src/main.js"
-echo "# README" > "$TEST_DIR/README.md"
-echo "*.log" > "$TEST_DIR/.gitignore"
-echo "Secret key" > "$TEST_DIR/.env"
+# Create temporary directories
+mkdir -p "$TEST_PROJECT_DIR/src" "$TEST_PROJECT_DIR/docs"
+mkdir -p "$TEST_OUTPUT_DIR"
 
-# Create a test config file
-cat << EOF > "$TEST_DIR/test_config.toml"
-input_dir = "$TEST_DIR"
-output_dir = "$TEST_DIR/output"
-ignore_patterns = ["*.log"]
-include_hidden_patterns = [".gitignore"]
-EOF
+# Create test files
+echo "fn main() { println!(\"Hello, World!\"); }" > "$TEST_PROJECT_DIR/src/main.rs"
+echo "# Test Documentation" > "$TEST_PROJECT_DIR/docs/readme.md"
+echo "secret_key=12345" > "$TEST_PROJECT_DIR/.env"
 
-# Run conag with the test config
-echo "Running conag..."
-cargo run -- --config "$TEST_DIR/test_config.toml"
+# Build the application
+echo "Building the application..."
+cargo build --features dev
 
-# Check if the output file exists
-OUTPUT_FILE="$TEST_DIR/output/$(basename $TEST_DIR)_conag_output.md"
-if [ -f "$OUTPUT_FILE" ]; then
-    echo "Test passed: Output file created successfully"
-    echo "Output file contents:"
-    echo "----------------------------------------"
-    cat "$OUTPUT_FILE"
-    echo "----------------------------------------"
+# Generate default config
+echo "Generating default config..."
+cargo run --features dev -- --generate-config
+
+# Create test config
+cat > "$TEST_CONFIG" << EOL
+input_dir = "$TEST_PROJECT_DIR"
+output_dir = "$TEST_OUTPUT_DIR"
+ignore_patterns = ["*.tmp"]
+include_hidden_patterns = [".env"]
+EOL
+
+echo "Contents of test config file:"
+cat "$TEST_CONFIG"
+
+# Function to run conag and check for errors
+run_conag() {
+    echo "Running: $1"
+    if ! eval $1; then
+        echo "Error occurred. Exiting."
+        exit 1
+    fi
+}
+
+# Test cases
+echo "Running with default config..."
+run_conag "cargo run --features dev"
+
+echo "Running with custom config..."
+run_conag "cargo run --features dev -- --config \"$TEST_CONFIG\""
+
+echo "Running with custom config and include hidden files..."
+run_conag "cargo run --features dev -- --config \"$TEST_CONFIG\" --include-hidden .env"
+
+echo "Running with custom config and plain text output..."
+run_conag "cargo run --features dev -- --config \"$TEST_CONFIG\" --plain-text"
+
+echo "Test runs completed."
+echo "Temporary files and outputs are located in: $TEMP_DIR"
+echo "Config file is located at: $TEST_CONFIG"
+echo "Output files are located in: $TEST_OUTPUT_DIR"
+
+# Ask user if they want to delete the temporary files
+read -p "Are you done reviewing the outputs? (yes/no): " user_response
+
+if [ "$user_response" = "yes" ]; then
+    echo "Deleting temporary files and directories..."
+    rm -rf "$TEMP_DIR"
+    echo "Cleanup completed."
+elif [ "$user_response" = "no" ]; then
+    echo "Temporary files and directories have been left for your review."
+    echo "You can find them at: $TEMP_DIR"
+    echo "Remember to delete them manually when you're done."
 else
-    echo "Test failed: Output file not created"
+    echo "Invalid response. If you want to delete the temporary files and directories manually, run:"
+    echo "rm -rf \"$TEMP_DIR\""
 fi
 
-# Ask user if they want to keep the test directory
-read -p "Do you want to keep the test directory for inspection? (y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]
-then
-    echo "Test directory kept at: $TEST_DIR"
-    echo "You can inspect the files and manually delete the directory when done."
-    echo "To delete the directory, run: rm -rf $TEST_DIR"
-else
-    rm -rf "$TEST_DIR"
-    echo "Test directory removed"
-fi
+echo "Test script completed."

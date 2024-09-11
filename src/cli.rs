@@ -7,14 +7,10 @@ use anyhow::Result;
 use std::collections::HashSet;
 use crate::config::{read_config, generate_default_config};
 
-/// Represents the command-line interface structure for the application.
-///
-/// This struct is derived from `clap::Parser` and defines the CLI arguments
-/// that the application accepts.
 #[derive(Parser)]
 #[command(author, version, about)]
 pub struct Cli {
-    /// Path to the configuration file (optional)
+    /// Path to the configuration file
     #[arg(short, long)]
     pub config: Option<String>,
 
@@ -31,34 +27,38 @@ pub struct Cli {
     pub plain_text: bool,
 }
 
-/// Runs the main CLI application.
+/// Executes the main functionality of the CLI application.
 ///
-/// This function performs the following steps:
-/// 1. Generates a default config file if requested.
-/// 2. Reads and updates the configuration based on CLI arguments.
-/// 3. Determines the input path and project name.
-/// 4. Lists and filters files based on ignore rules.
-/// 5. Aggregates contents of the filtered files.
-/// 6. Formats the output (either as Markdown or plain text).
-/// 7. Creates the output directory if it doesn't exist.
-/// 8. Generates the output file name.
-/// 9. Writes the formatted content to the output file.
+/// This function handles the following operations:
+/// - Generates a default configuration file if requested
+/// - Reads the configuration (from a custom path in dev mode, or default location in release mode)
+/// - Processes command-line arguments to override configuration settings
+/// - Lists and filters files in the input directory
+/// - Aggregates contents of the filtered files
+/// - Formats the output (as Markdown or plain text)
+/// - Writes the formatted output to a file in the specified output directory
 ///
 /// # Arguments
 ///
-/// * `cli` - The parsed CLI arguments.
+/// * `cli` - A `Cli` struct containing parsed command-line arguments
 ///
 /// # Returns
 ///
-/// Returns a `Result<()>`, which is `Ok(())` if the operation was successful,
-/// or an error if any step in the process failed.
+/// Returns `Ok(())` if the operation is successful, or an error if any step fails.
 pub fn run(cli: Cli) -> Result<()> {
     if cli.generate_config {
         generate_default_config()?;
         return Ok(());
     }
 
-    let mut config = read_config(cli.config.as_deref())?;
+    let mut config = if cfg!(feature = "dev") {
+        read_config(cli.config.as_deref())?
+    } else {
+        if cli.config.is_some() {
+            eprintln!("Warning: Custom config path is ignored in release mode. Using default config location.");
+        }
+        read_config(None)?
+    };
 
     if let Some(include_hidden) = cli.include_hidden {
         config.include_hidden_patterns = include_hidden;
