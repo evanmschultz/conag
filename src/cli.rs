@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use std::env;
 use std::io::Write;
 use clap::Parser;
+use anyhow::Result;
+use std::collections::HashSet;
 
 #[derive(Parser)]
 #[command(author, version, about)]
@@ -14,31 +16,25 @@ pub struct Cli {
     pub include_hidden: Option<Vec<String>>,
 }
 
-pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(cli: Cli) -> Result<()> {
     let mut config = crate::config::read_config(cli.config.as_str())?;
 
     if let Some(include_hidden) = cli.include_hidden {
         config.include_hidden_patterns = include_hidden;
     }
 
-    // Resolve the input directory to an absolute path
     let input_path = if config.input_dir == "." {
-        env::current_dir()?  // Get the current directory if input_dir is "."
+        env::current_dir()?
     } else {
         PathBuf::from(&config.input_dir)
     };
-
-    let files = crate::file_system_ops::list_files(&input_path)?;
-
+    
+    let files: HashSet<PathBuf> = crate::file_system_ops::list_files(&input_path)?;
+    
     let ignore_rules = crate::ignore_rules::IgnoreRules::new(&config);
-    let filtered_files = crate::ignore_rules::apply_ignore_rules(&ignore_rules, &files);
-
-    let contents = crate::aggregator::aggregate_contents(&filtered_files)?;
-
-    if contents.is_empty() {
-        println!("No files found");
-        return Ok(());
-    }
+    let filtered_files: Vec<PathBuf> = crate::ignore_rules::apply_ignore_rules(&ignore_rules, &files);
+    
+    let contents = crate::aggregator::aggregate_contents(&filtered_files, &input_path)?;
 
     let output = crate::aggregator::format_output(&contents, false);
 

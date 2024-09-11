@@ -64,3 +64,19 @@ fn test_get_ignore_patterns_includes_hidden_files() {
     assert!(patterns.contains(&"*.tmp".to_string()));
     assert!(patterns.contains(&".*".to_string()));
 }
+
+#[test]
+fn test_resolve_output_dir() {
+    let mut config = Config {
+        input_dir: String::new(),
+        output_dir: "{DESKTOP}/conag_output".to_string(),
+        ignore_patterns: vec![],
+        project_type: None,
+        project_specific_ignores: HashMap::new(),
+        include_hidden_patterns: vec![],
+    };
+
+    config.resolve_output_dir().unwrap();
+    assert!(config.output_dir.contains("conag_output"));
+    assert!(!config.output_dir.contains("{DESKTOP}"));
+}

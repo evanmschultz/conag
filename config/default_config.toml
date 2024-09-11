@@ -1,37 +1,139 @@
-# Default configuration for conag
+# Configuration file for Conag (Code Aggregator)
 
-# The directory to scan for files
+# The directory to scan for files (use "." for current directory)
 input_dir = "."
 
 # The directory where the output will be saved
-output_dir = "./conag_output"
+# Use "{DESKTOP}" as a placeholder for the user's desktop directory, note this is the only supported placeholder, e.g. 
+# use the correct path for Documents
+output_dir = "{DESKTOP}/conag_output"
 
-# Patterns for files to ignore
+# Specify the project type (optional, helps with language-specific ignores)
+# Supported values: "python", "rust", "go", "node"
+# Leave empty or comment out for auto-detection
+# project_type = "python"
+
+# Global ignore patterns (applied to all project types)
+# Use glob patterns: '*' for any characters, '**' for any subdirectories
 ignore_patterns = [
-    "target/**/*",  # Rust build output
-    "Cargo.lock",   # Rust dependency lock file
-    "**/Cargo.lock", # Rust dependency lock file search
-    "**/LICENSE",      # License
-    "**/*.rs.bk",   # Rust backup files
-    ".git/**/*",    # Git directory
-    ".gitignore",   # Git ignore file
-    "**/.DS_Store", # macOS system files
-    "**/thumbs.db", # Windows thumbnail cache files
-    "**/*.swp",     # Vim swap files
-    "**/*~",        # Backup files
-    "*_conag_output.txt",  # Output file
+    # LICENSE
+    "**/LICENSE",
+
+    # Build and output directories
+    "**/build/**",
+    "**/dist/**",
+    "**/out/**",
+    "**/target/**",
+
+    # Dependency directories
+    "**/node_modules/**",
+    "**/.venv/**",
+    "**/venv/**",
+
+    # Cache directories
+    "**/__pycache__/**",
+    "**/.pytest_cache/**",
+
+    # Version control
+    "**/.git/**",
+    "**/.svn/**",
+    "**/.hg/**",
+
+    # IDE and editor files
+    "**/.vscode/**",
+    "**/.idea/**",
+    "**/*.swp",
+    "**/*~",
+
+    # OS-specific files
+    "**/.DS_Store",
+    "**/Thumbs.db",
+
+    # Backup files
+    "**/*.bak",
+    "**/*.backup",
+
+    # Log files
+    "**/*.log",
+
+    # Database files
+    "**/*.sqlite",
+    "**/*.db",
+
+    # Environment and configuration files
+    "**/*.env",
+    "**/.env*",
+    "**/*.cfg",
+    "**/*.ini",
+    "**/*.yaml",
+    "**/*.yml",
+
+    # Output file (to avoid including previous outputs)
+    "**/*_conag_output.txt",
+
+    # Rust-specific ignores
+    "**/*.rlib",
+    "**/*.rmeta",
+    "**/Cargo.lock",
+
+    # Python-specific ignores
+    "**/*.pyc",
+    "**/*.pyo",
+    "**/*.egg-info/**",
+    "**/pip-wheel-metadata/**",
+    "**/__pycache__/**",
+    "**/*.pytest_cache/**",
+    "**/.pytest_cache/**",
+    "**/.venv/**",
+    "**/venv/**",
+
+    # Go-specific ignores
+    # "**/*.test",
+    "**/*.out",
+    "**/go.sum",
+
+    # Node-specific ignores
+    "**/*.js.map",
+    "**/*.d.ts",
+    "**/package-lock.json",
+    "**/yarn.lock",
+
+    # Temporarily ignore the sh files
+    "**/*.sh"
 ]
 
-# Specify the project type (optional)
-project_type = "rust"
+# Language-specific ignore patterns
+[language_specific_ignores]
+python = [
+    # Add python-specific ignores
+]
 
-# Project-specific ignore patterns
-[project_specific_ignores]
 rust = [
-    "target/**/*",
-    "Cargo.lock",
-    "**/*.rs.bk"
+    # Add rust-specific ignores
+]
+
+go = [
+    # Add go-specific ignores
+]
+
+node = [
+    # Add node-specific ignores
 ]
 
 # Patterns for hidden files to include (empty by default)
-include_hidden_patterns = []
+# Uncomment and add patterns if you want to include specific hidden files
+# include_hidden_patterns = [
+#     ".gitignore",
+#     ".env.example",
+# ]
+
+# Custom ignore patterns (add your own patterns here)
+custom_ignore_patterns = [
+    # Add any additional patterns you want to ignore
+]
+
+# Custom include patterns (files or directories to always include, even if ignored by other rules)
+custom_include_patterns = [
+    # Add any patterns you always want to include
+    # "**/*.md",  # Always include markdown files, for example
+]

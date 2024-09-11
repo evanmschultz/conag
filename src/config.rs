@@ -1,7 +1,8 @@
 use serde::Deserialize;
 use std::fs;
 use std::collections::HashMap;
-use anyhow::Result;
+use anyhow::{Result, Context};
+use dirs;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -35,10 +36,25 @@ impl Config {
             glob::Pattern::new(pattern).map(|p| p.matches(path)).unwrap_or(false)
         })
     }
+
+    pub fn resolve_output_dir(&mut self) -> Result<()> {
+        if self.output_dir.contains("{DESKTOP}") {
+            let desktop_path = dirs::desktop_dir()
+                .with_context(|| "Failed to get desktop directory")?;
+            self.output_dir = self.output_dir.replace(
+                "{DESKTOP}",
+                desktop_path.to_str().ok_or_else(|| anyhow::anyhow!("Invalid desktop path"))?
+            );
+        }
+        Ok(())
+    }
 }
 
 pub fn read_config(config_path: &str) -> Result<Config> {
-    let config_str = fs::read_to_string(config_path)?;
-    let config: Config = toml::from_str(&config_str)?;
+    let config_str = fs::read_to_string(config_path)
+        .with_context(|| format!("Failed to read config file: {}", config_path))?;
+    let mut config: Config = toml::from_str(&config_str)
+        .with_context(|| format!("Failed to parse config file: {}", config_path))?;
+    config.resolve_output_dir()?;
     Ok(config)
 }

@@ -9,7 +9,6 @@ fn test_list_files() {
     let temp_dir = TempDir::new().unwrap();
     let base_path = temp_dir.path();
 
-    // Create a file structure
     fs::create_dir(base_path.join("subdir")).unwrap();
     File::create(base_path.join("file1.txt")).unwrap();
     File::create(base_path.join("file2.txt")).unwrap();
