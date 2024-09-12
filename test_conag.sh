@@ -8,13 +8,15 @@ TEST_OUTPUT_DIR="$TEMP_DIR/test_output"
 TEST_CONFIG="$TEMP_DIR/test_config.toml"
 
 # Create temporary directories
-mkdir -p "$TEST_PROJECT_DIR/src" "$TEST_PROJECT_DIR/docs"
+mkdir -p "$TEST_PROJECT_DIR/src" "$TEST_PROJECT_DIR/docs" "$TEST_PROJECT_DIR/ignored_dir"
 mkdir -p "$TEST_OUTPUT_DIR"
 
 # Create test files
 echo "fn main() { println!(\"Hello, World!\"); }" > "$TEST_PROJECT_DIR/src/main.rs"
 echo "# Test Documentation" > "$TEST_PROJECT_DIR/docs/readme.md"
 echo "secret_key=12345" > "$TEST_PROJECT_DIR/.env"
+echo "This file should be ignored" > "$TEST_PROJECT_DIR/ignored_file.txt"
+echo "This directory should be ignored" > "$TEST_PROJECT_DIR/ignored_dir/ignored_file.txt"
 
 # Build the application
 echo "Building the application..."
@@ -28,8 +30,8 @@ cargo run --features dev -- --generate-config
 cat > "$TEST_CONFIG" << EOL
 input_dir = "$TEST_PROJECT_DIR"
 output_dir = "$TEST_OUTPUT_DIR"
-ignore_patterns = ["*.tmp"]
-include_hidden_patterns = [".env"]
+ignore_patterns = ["*.txt", "**/ignored_dir/**"]
+include_hidden_patterns = []
 EOL
 
 echo "Contents of test config file:"
@@ -44,18 +46,45 @@ run_conag() {
     fi
 }
 
+# Function to check output file contents
+check_output() {
+    local output_file="$1"
+    local expected_content="$2"
+    local unexpected_content="$3"
+    
+    if grep -q "$expected_content" "$output_file"; then
+        echo "SUCCESS: Output contains '$expected_content'"
+    else
+        echo "FAILURE: Output does not contain '$expected_content'"
+    fi
+    
+    if grep -q "$unexpected_content" "$output_file"; then
+        echo "FAILURE: Output contains '$unexpected_content' (should be ignored)"
+    else
+        echo "SUCCESS: Output does not contain '$unexpected_content' (correctly ignored)"
+    fi
+}
+
 # Test cases
-echo "Running with default config..."
-run_conag "cargo run --features dev"
-
-echo "Running with custom config..."
+echo "Running with custom config (should ignore .txt files and ignored_dir)..."
 run_conag "cargo run --features dev -- --config \"$TEST_CONFIG\""
+check_output "$TEST_OUTPUT_DIR/test_project_conag_output.md" "fn main() { println!(\"Hello, World!\"); }" "This file should be ignored"
 
-echo "Running with custom config and include hidden files..."
-run_conag "cargo run --features dev -- --config \"$TEST_CONFIG\" --include-hidden .env"
+echo "Running with custom config and including ignored file..."
+run_conag "cargo run --features dev -- --config \"$TEST_CONFIG\" --include ignored_file.txt"
+check_output "$TEST_OUTPUT_DIR/test_project_conag_output.md" "This file should be ignored" "This directory should be ignored"
 
-echo "Running with custom config and plain text output..."
-run_conag "cargo run --features dev -- --config \"$TEST_CONFIG\" --plain-text"
+echo "Running with custom config and including ignored directory..."
+run_conag "cargo run --features dev -- --config \"$TEST_CONFIG\" --include ignored_dir"
+check_output "$TEST_OUTPUT_DIR/test_project_conag_output.md" "This directory should be ignored" "This file should be ignored"
+
+echo "Running with custom config and including both ignored file and directory..."
+run_conag "cargo run --features dev -- --config \"$TEST_CONFIG\" --include ignored_file.txt --include ignored_dir"
+check_output "$TEST_OUTPUT_DIR/test_project_conag_output.md" "This file should be ignored" "This directory should be ignored"
+
+echo "Running with custom config and including hidden file..."
+run_conag "cargo run --features dev -- --config \"$TEST_CONFIG\" --include .env"
+check_output "$TEST_OUTPUT_DIR/test_project_conag_output.md" "secret_key=12345" "This file should be ignored"
 
 echo "Test runs completed."
 echo "Temporary files and outputs are located in: $TEMP_DIR"

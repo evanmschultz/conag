@@ -16,6 +16,7 @@ fn create_test_config(
         project_type,
         project_specific_ignores,
         include_hidden_patterns,
+        include_overrides: vec![],
     }
 }
 
@@ -46,7 +47,7 @@ fn test_ignore_hidden_files() {
     files.insert(PathBuf::from("file1.txt"));
     files.insert(PathBuf::from(".hidden"));
     files.insert(PathBuf::from(".gitignore"));
-    let result = apply_ignore_rules(&ignore_rules, &files);
+    let result = apply_ignore_rules(&ignore_rules, &files, &[]);
     assert_eq!(result.len(), 2);
     assert!(result.contains(&PathBuf::from("file1.txt")));
     assert!(result.contains(&PathBuf::from(".gitignore")));
@@ -66,7 +67,7 @@ fn test_ignore_rules_with_hidden_patterns() {
     files.insert(PathBuf::from("file2.log"));
     files.insert(PathBuf::from(".hidden"));
     files.insert(PathBuf::from(".env"));
-    let result = apply_ignore_rules(&ignore_rules, &files);
+    let result = apply_ignore_rules(&ignore_rules, &files, &[]);
     assert_eq!(result.len(), 2);
     assert!(result.contains(&PathBuf::from("file1.txt")));
     assert!(result.contains(&PathBuf::from(".env")));
@@ -85,7 +86,7 @@ fn test_ignore_file_extension() {
     files.insert(PathBuf::from("file1.txt"));
     files.insert(PathBuf::from("file2.md"));
     files.insert(PathBuf::from("file3.txt"));
-    let result = apply_ignore_rules(&ignore_rules, &files);
+    let result = apply_ignore_rules(&ignore_rules, &files, &[]);
     assert_eq!(result.len(), 1);
     assert!(result.contains(&PathBuf::from("file2.md")));
 }
@@ -103,7 +104,7 @@ fn test_ignore_directory() {
     files.insert(PathBuf::from("file1.txt"));
     files.insert(PathBuf::from("temp/file2.txt"));
     files.insert(PathBuf::from("temp/subdir/file3.txt"));
-    let result = apply_ignore_rules(&ignore_rules, &files);
+    let result = apply_ignore_rules(&ignore_rules, &files, &[]);
     assert_eq!(result.len(), 1);
     assert!(result.contains(&PathBuf::from("file1.txt")));
 }
@@ -125,8 +126,26 @@ fn test_project_specific_ignore_rules() {
     files.insert(PathBuf::from("src/main.rs"));
     files.insert(PathBuf::from("target/debug/main"));
     files.insert(PathBuf::from("log/app.log"));
-    let result = apply_ignore_rules(&ignore_rules, &files);
+    let result = apply_ignore_rules(&ignore_rules, &files, &[]);
     assert_eq!(result.len(), 1);
     assert!(result.contains(&PathBuf::from("src/main.rs")));
 }
 
+#[test]
+fn test_include_override() {
+    let config = create_test_config(
+        vec!["*.txt".to_string()],
+        None,
+        HashMap::new(),
+        vec![],
+    );
+    let ignore_rules = IgnoreRules::new(&config);
+    let mut files = HashSet::new();
+    files.insert(PathBuf::from("file1.txt"));
+    files.insert(PathBuf::from("file2.md"));
+    files.insert(PathBuf::from("file3.txt"));
+    let result = apply_ignore_rules(&ignore_rules, &files, &["file1.txt".to_string()]);
+    assert_eq!(result.len(), 2);
+    assert!(result.contains(&PathBuf::from("file1.txt")));
+    assert!(result.contains(&PathBuf::from("file2.md")));
+}

@@ -366,3 +366,38 @@ fn test_run_with_custom_config() {
         // Add assertions here to check if the default config was used instead
     }
 }
+
+#[test]
+fn test_cli_with_include_override() {
+    let temp_dir = TempDir::new().unwrap();
+    create_test_file(&temp_dir, "included.txt", "This should be included");
+    create_test_file(&temp_dir, "excluded.txt", "This should be excluded");
+
+    let config_content = format!(
+        r#"
+        input_dir = "{}"
+        output_dir = "{}"
+        ignore_patterns = ["*.txt"]
+        "#,
+        temp_dir.path().display(),
+        temp_dir.path().display()
+    );
+    let config_path = temp_dir.path().join("config.toml");
+    fs::write(&config_path, config_content).unwrap();
+
+    let mut cmd = Command::cargo_bin("conag").unwrap();
+    cmd.arg("--config").arg(&config_path)
+       .arg("--include").arg("included.txt");
+    
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("This should be included"))
+        .stdout(predicate::str::not(predicate::str::contains("This should be excluded")));
+
+    // Check if output file was created and contains the correct content
+    let output_file = temp_dir.path().join("aggregated_contents.txt");
+    assert!(output_file.exists());
+    let output_content = fs::read_to_string(output_file).unwrap();
+    assert!(output_content.contains("This should be included"));
+    assert!(!output_content.contains("This should be excluded"));
+}

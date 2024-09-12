@@ -1,21 +1,29 @@
 use serde::Deserialize;
-use std::fs;
-use std::path::PathBuf;
 use std::collections::HashMap;
-use anyhow::{Result, Context, bail};
-use dirs;
+use std::path::{PathBuf, Path};
+use anyhow::{Result, Context};
+use std::fs;
+use crate::cli::Cli;
 
-/// Represents the configuration for the application.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Config {
+    #[serde(default = "default_input_dir")]
     pub input_dir: String,
     pub output_dir: String,
+    #[serde(default)]
     pub ignore_patterns: Vec<String>,
+    #[serde(default)]
     pub project_type: Option<String>,
     #[serde(default)]
     pub project_specific_ignores: HashMap<String, Vec<String>>,
     #[serde(default)]
     pub include_hidden_patterns: Vec<String>,
+    #[serde(default)]
+    pub include_overrides: Vec<String>,
+}
+
+fn default_input_dir() -> String {
+    ".".to_string()
 }
 
 impl Config {
@@ -57,39 +65,52 @@ impl Config {
 
     /// Returns the default config file path
     pub fn default_config_path() -> Result<PathBuf> {
-        let config_dir = dirs::home_dir()
-            .ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?
-            .join(".config")
-            .join("conag");
-        Ok(config_dir.join("config.toml"))
+        Config::default_config_path_with_home(None)
+    }
+
+    pub fn default_config_path_with_home(home_override: Option<&Path>) -> Result<PathBuf> {
+        let home_dir = match home_override {
+            Some(path) => path.to_path_buf(),
+            None => dirs::home_dir()
+                .ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?,
+        };
+        Ok(home_dir.join(".config").join("conag").join("config.toml"))
+    }
+
+    pub fn with_cli_overrides(mut self, cli: &Cli) -> Self {
+        if let Some(include) = &cli.include {
+            self.include_overrides = include.clone();
+        }
+        self
+    }
+
+    pub fn with_output_dir(mut self, output_dir: String) -> Self {
+        self.output_dir = output_dir;
+        self
     }
 }
-
-
 
 /// Reads and parses the configuration file.
 ///
 /// This function attempts to read the configuration file from the specified path
-/// or from the default location if no path is provided. It then parses the
-/// contents of the file into a `Config` struct.
+/// or the default path if not provided. It then parses the contents into a `Config` struct.
 ///
 /// # Arguments
 ///
 /// * `config_path` - An optional string slice that holds the path to the config file.
-///   If None, the default config path will be used.
+///   If None, the default config path is used.
 ///
 /// # Returns
 ///
 /// Returns a `Result<Config>`, which is `Ok(Config)` if the operation was successful,
-/// or an error if the config file couldn't be found, read, or parsed.
+/// or an error if there were issues reading or parsing the config file.
 ///
 /// # Errors
 ///
 /// This function will return an error if:
 /// - The config file does not exist at the specified or default path.
 /// - The config file cannot be read.
-/// - The contents of the config file cannot be parsed as valid TOML.
-/// - The output directory in the config cannot be resolved.
+/// - The contents of the config file cannot be parsed into a `Config` struct.
 pub fn read_config(config_path: Option<&str>) -> Result<Config> {
     let config_path = match config_path {
         Some(path) => PathBuf::from(path),
@@ -97,14 +118,13 @@ pub fn read_config(config_path: Option<&str>) -> Result<Config> {
     };
 
     if !config_path.exists() {
-        bail!("Config file not found at {:?}. To generate a default config, run:\nconag --generate-config", config_path);
+        anyhow::bail!("Config file not found at {:?}. To generate a default config, run:\nconag --generate-config", config_path);
     }
 
     let config_str = fs::read_to_string(&config_path)
         .with_context(|| format!("Failed to read config file: {:?}", config_path))?;
-    let mut config: Config = toml::from_str(&config_str)
+    let config: Config = toml::from_str(&config_str)
         .with_context(|| format!("Failed to parse config file: {:?}", config_path))?;
-    config.resolve_output_dir()?;
     Ok(config)
 }
 

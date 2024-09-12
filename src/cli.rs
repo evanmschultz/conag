@@ -25,26 +25,32 @@ pub struct Cli {
     /// Flag to use plain text output format instead of Markdown.
     #[arg(long, help = "Use plain text output format instead of Markdown")]
     pub plain_text: bool,
+
+    /// Files or directories to include, overriding ignore rules
+    #[arg(long, value_delimiter = ',')]
+    pub include: Option<Vec<String>>,
 }
 
-/// Executes the main functionality of the CLI application.
+
+/// Runs the main logic of the application based on the provided CLI arguments.
 ///
 /// This function handles the following operations:
-/// - Generates a default configuration file if requested
-/// - Reads the configuration (from a custom path in dev mode, or default location in release mode)
-/// - Processes command-line arguments to override configuration settings
-/// - Lists and filters files in the input directory
-/// - Aggregates contents of the filtered files
-/// - Formats the output (as Markdown or plain text)
-/// - Writes the formatted output to a file in the specified output directory
+/// - Generating a default configuration file if requested
+/// - Reading and applying the configuration
+/// - Applying CLI overrides to the configuration
+/// - Processing input files according to the configuration and ignore rules
+/// - Aggregating content from the filtered files
+/// - Formatting the output (as Markdown or plain text)
+/// - Writing the output to a file
 ///
 /// # Arguments
 ///
-/// * `cli` - A `Cli` struct containing parsed command-line arguments
+/// * `cli` - A `Cli` struct containing the parsed command-line arguments
 ///
 /// # Returns
 ///
-/// Returns `Ok(())` if the operation is successful, or an error if any step fails.
+/// Returns a `Result<()>` which is `Ok(())` if the operation was successful,
+/// or an `Err` containing the error information if any step failed.
 pub fn run(cli: Cli) -> Result<()> {
     if cli.generate_config {
         generate_default_config()?;
@@ -60,9 +66,17 @@ pub fn run(cli: Cli) -> Result<()> {
         read_config(None)?
     };
 
+    // Apply CLI overrides
+    config = config.with_cli_overrides(&cli);
+
     if let Some(include_hidden) = cli.include_hidden {
         config.include_hidden_patterns = include_hidden;
     }
+
+    // Resolve output directory
+    let output_dir = config.output_dir.clone();
+    config = config.clone().with_output_dir(output_dir);
+    config.resolve_output_dir()?;
 
     let input_path = if config.input_dir == "." {
         env::current_dir()?
@@ -79,7 +93,7 @@ pub fn run(cli: Cli) -> Result<()> {
     let files: HashSet<PathBuf> = crate::file_system_ops::list_files(&input_path)?;
     
     let ignore_rules = crate::ignore_rules::IgnoreRules::new(&config);
-    let filtered_files: Vec<PathBuf> = crate::ignore_rules::apply_ignore_rules(&ignore_rules, &files);
+    let filtered_files: Vec<PathBuf> = crate::ignore_rules::apply_ignore_rules(&ignore_rules, &files, &config.include_overrides);
     
     let contents = crate::aggregator::aggregate_contents(&filtered_files, &input_path)?;
 
@@ -97,7 +111,7 @@ pub fn run(cli: Cli) -> Result<()> {
         .unwrap_or("unknown");
     let file_extension = if use_markdown { "md" } else { "txt" };
     let output_file_name = format!("{}_conag_output.{}", root_dir_name, file_extension);
-    let output_path = output_dir.join(&output_file_name);
+    let output_path = PathBuf::from(&config.output_dir).join(&output_file_name);
 
     // Open the file in write mode, which truncates the file if it already exists
     let mut file = File::create(&output_path)?;

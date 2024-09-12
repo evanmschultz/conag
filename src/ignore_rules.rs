@@ -42,29 +42,18 @@ impl IgnoreRules {
     }
 }
 
-/// Applies the ignore rules to a set of files and returns the filtered list of files.
-///
-/// This function takes a reference to an `IgnoreRules` instance and a `HashSet` of `PathBuf`s
-/// representing the files to be filtered. It applies the ignore rules to each file and returns
-/// a `Vec<PathBuf>` containing only the files that should not be ignored.
-///
-/// # Arguments
-///
-/// * `ignore_rules` - A reference to the `IgnoreRules` instance containing the ignore patterns.
-/// * `files` - A reference to a `HashSet<PathBuf>` containing the files to be filtered.
-///
-/// # Returns
-///
-/// Returns a `Vec<PathBuf>` containing the files that should not be ignored based on the rules.
-pub fn apply_ignore_rules(ignore_rules: &IgnoreRules, files: &HashSet<PathBuf>) -> Vec<PathBuf> {
+pub fn apply_ignore_rules(ignore_rules: &IgnoreRules, files: &HashSet<PathBuf>, include_overrides: &[String]) -> Vec<PathBuf> {
     files.iter()
         .filter(|file| {
             let file_name = file.file_name().and_then(|s| s.to_str()).unwrap_or("");
             let is_hidden = ignore_rules.ignore_hidden.matches(file_name);
             let should_ignore = ignore_rules.rules.iter().any(|rule| rule.matches_path(file));
             let should_include_hidden = ignore_rules.include_hidden.iter().any(|pattern| pattern.matches(file_name));
+            let should_override = include_overrides.iter().any(|override_path| {
+                file.to_str().map_or(false, |f| f.contains(override_path))
+            });
 
-            (!is_hidden || should_include_hidden) && !should_ignore
+            should_override || ((!is_hidden || should_include_hidden) && !should_ignore)
         })
         .cloned()
         .collect()
