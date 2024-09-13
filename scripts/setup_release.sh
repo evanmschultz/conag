@@ -111,7 +111,7 @@ git add .github/workflows/release.yml ./install.sh
 
 # Check if there are changes to commit
 if ! git diff --cached --exit-code; then
-    git commit -m "Update GitHub Actions workflow and installation script"
+    git commit -m "Updates GitHub Actions workflow and installation script"
     echo "Changes committed."
 else
     echo "No changes to commit."
