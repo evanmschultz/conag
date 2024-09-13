@@ -1,29 +1,28 @@
 name: Release
 
 on:
-  release:
-    types: [created]
+  push:
+    tags:
+      - 'v*.*.*'
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  build-and-release:
     runs-on: macos-latest
     steps:
     - uses: actions/checkout@v4
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
+
     - name: Build
       run: cargo build --release
-    - name: Rename binary
-      run: mv target/release/conag target/release/conag-macos
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ./target/release/conag
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./target/release/conag-macos
-        asset_name: conag-macos
-        asset_content_type: application/octet-stream

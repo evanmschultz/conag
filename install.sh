@@ -2,6 +2,11 @@
 
 set -e
 
+# Set variables
+REPO="evanmschultz/conag"
+ASSET_NAME="conag"
+INSTALL_DIR="/usr/local/bin"
+
 # Detect OS
 if [[ "$OSTYPE" == "darwin"* ]]; then
     OS="macos"
@@ -10,18 +15,25 @@ else
     exit 1
 fi
 
-# Set install directory
-INSTALL_DIR="/usr/local/bin"
+# Construct the download URL
+DOWNLOAD_URL="https://github.com/$REPO/releases/latest/download/$ASSET_NAME"
 
-# Download latest release
-LATEST_RELEASE_URL=$(curl -s https://api.github.com/repos/evanmschultz/conag/releases/latest | grep "browser_download_url.*conag" | cut -d '"' -f 4)
-curl -L $LATEST_RELEASE_URL -o conag
+echo "Downloading $ASSET_NAME from $DOWNLOAD_URL..."
+
+# Download the latest release asset
+curl -L "$DOWNLOAD_URL" -o "$ASSET_NAME"
+
+# Verify that the file was downloaded
+if [ ! -f "$ASSET_NAME" ]; then
+    echo "Error: Failed to download $ASSET_NAME"
+    exit 1
+fi
 
 # Make binary executable
-chmod +x conag
+chmod +x "$ASSET_NAME"
 
 # Move binary to install directory
-sudo mv conag $INSTALL_DIR
+sudo mv "$ASSET_NAME" "$INSTALL_DIR"
 
-echo "conag has been installed to $INSTALL_DIR"
-echo "You may need to restart your terminal or run 'source ~/.bash_profile' (or equivalent) to use conag from anywhere."
+echo "$ASSET_NAME has been installed to $INSTALL_DIR"
+echo "You may need to restart your terminal or run 'source ~/.bash_profile' (or equivalent) to use $ASSET_NAME from anywhere."
