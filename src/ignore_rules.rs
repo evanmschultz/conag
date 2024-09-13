@@ -42,6 +42,23 @@ impl IgnoreRules {
     }
 }
 
+/// Applies ignore rules to a set of files, considering file and directory overrides.
+///
+/// This function filters a set of files based on the provided ignore rules, while also
+/// taking into account any explicitly included files or directories.
+///
+/// # Arguments
+///
+/// * `ignore_rules` - A reference to the `IgnoreRules` struct containing ignore patterns.
+/// * `files` - A reference to a `HashSet` of `PathBuf`s representing the files to filter.
+/// * `include_file_overrides` - A slice of `String`s representing specific files to include, overriding ignore rules.
+/// * `include_dir_overrides` - A slice of `String`s representing directories to include, overriding ignore rules.
+/// * `input_dir` - A reference to the `Path` representing the base input directory.
+///
+/// # Returns
+///
+/// Returns a `Vec<PathBuf>` containing the filtered list of files that should be included
+/// based on the ignore rules and overrides.
 pub fn apply_ignore_rules(
     ignore_rules: &IgnoreRules,
     files: &HashSet<PathBuf>,
