@@ -14,7 +14,7 @@ fi
 INSTALL_DIR="/usr/local/bin"
 
 # Download latest release
-LATEST_RELEASE_URL=$(curl -s https://api.github.com/repos/evanmschultz/conag/releases/latest | grep "browser_download_url.*conag-$OS" | cut -d '"' -f 4)
+LATEST_RELEASE_URL=$(curl -s https://api.github.com/repos/evanmschultz/conag/releases/latest | grep "browser_download_url.*conag" | cut -d '"' -f 4)
 curl -L $LATEST_RELEASE_URL -o conag
 
 # Make binary executable
