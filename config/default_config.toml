@@ -8,11 +8,6 @@ input_dir = "."
 # use the correct path for Documents
 output_dir = "{DESKTOP}/conag_output"
 
-# Specify the project type (optional, helps with language-specific ignores)
-# Supported values: "python", "rust", "go", "node"
-# Leave empty or comment out for auto-detection
-# project_type = "python"
-
 # Global ignore patterns (applied to all project types)
 # Use glob patterns: '*' for any characters, '**' for any subdirectories
 ignore_patterns = [
@@ -70,6 +65,7 @@ ignore_patterns = [
 
     # Output file (to avoid including previous outputs)
     "**/*_conag_output.txt",
+    "**/*_conag_output.md",
 
     # Rust-specific ignores
     "**/*.rlib",
@@ -102,38 +98,10 @@ ignore_patterns = [
     "**/*.sh"
 ]
 
-# Language-specific ignore patterns
-[language_specific_ignores]
-python = [
-    # Add python-specific ignores
-]
-
-rust = [
-    # Add rust-specific ignores
-]
-
-go = [
-    # Add go-specific ignores
-]
-
-node = [
-    # Add node-specific ignores
-]
-
 # Patterns for hidden files to include (empty by default)
 # Uncomment and add patterns if you want to include specific hidden files
-# include_hidden_patterns = [
+include_hidden_patterns = [
 #     ".gitignore",
 #     ".env.example",
-# ]
-
-# Custom ignore patterns (add your own patterns here)
-custom_ignore_patterns = [
-    # Add any additional patterns you want to ignore
 ]
 
-# Custom include patterns (files or directories to always include, even if ignored by other rules)
-custom_include_patterns = [
-    # Add any patterns you always want to include
-    # "**/*.md",  # Always include markdown files, for example
-]
