@@ -41,7 +41,8 @@ fn test_should_include_hidden() {
         project_type: None,
         project_specific_ignores: HashMap::new(),
         include_hidden_patterns: vec![".gitignore".to_string(), ".env*".to_string()],
-        include_overrides: vec![],
+        include_file_overrides: vec![],
+        include_dir_overrides: vec![],
     };
 
     assert!(config.should_include_hidden(".gitignore"));
@@ -60,7 +61,8 @@ fn test_get_ignore_patterns_includes_hidden_files() {
         project_type: None,
         project_specific_ignores: HashMap::new(),
         include_hidden_patterns: vec![],
-        include_overrides: vec![],
+        include_file_overrides: vec![],
+        include_dir_overrides: vec![],
     };
 
     let patterns = config.get_ignore_patterns();
@@ -77,7 +79,8 @@ fn test_resolve_output_dir() {
         project_type: None,
         project_specific_ignores: HashMap::new(),
         include_hidden_patterns: vec![],
-        include_overrides: vec![],
+        include_file_overrides: vec![],
+        include_dir_overrides: vec![],
     };
 
     config.resolve_output_dir().unwrap();
@@ -136,36 +139,6 @@ fn test_generate_default_config() {
     // Clean up
     env::remove_var("HOME");
 }
-
-// #[test]
-// fn test_read_config_with_default_path() {
-//     let temp_dir = TempDir::new().unwrap();
-//     env::set_var("HOME", temp_dir.path());
-
-//     // Generate a minimal valid config
-//     let config_dir = temp_dir.path().join(".config").join("conag");
-//     fs::create_dir_all(&config_dir).unwrap();
-//     let config_path = config_dir.join("config.toml");
-//     fs::write(&config_path, r#"output_dir = "{DESKTOP}/conag_output""#).unwrap();
-
-//     // Now read the config
-//     let config = read_config(None);
-    
-//     assert!(config.is_ok(), "Failed to read default config: {:?}", config.err());
-//     let config = config.unwrap();
-    
-//     // Add assertions to check if the config has expected values
-//     assert_eq!(config.input_dir, ".");  // Default value from code
-//     assert_eq!(config.output_dir, "{DESKTOP}/conag_output");  // Value from config file
-//     assert!(config.ignore_patterns.is_empty());
-//     assert!(config.project_type.is_none());
-//     assert!(config.project_specific_ignores.is_empty());
-//     assert!(config.include_hidden_patterns.is_empty());
-//     assert!(config.include_overrides.is_empty());
-
-//     // Clean up
-//     env::remove_var("HOME");
-// }
 
 #[test]
 fn test_config_not_found_error() {

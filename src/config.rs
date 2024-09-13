@@ -10,16 +10,24 @@ pub struct Config {
     #[serde(default = "default_input_dir")]
     pub input_dir: String,
     pub output_dir: String,
+
     #[serde(default)]
     pub ignore_patterns: Vec<String>,
+
     #[serde(default)]
     pub project_type: Option<String>,
+
     #[serde(default)]
     pub project_specific_ignores: HashMap<String, Vec<String>>,
+
     #[serde(default)]
     pub include_hidden_patterns: Vec<String>,
+
     #[serde(default)]
-    pub include_overrides: Vec<String>,
+    pub include_file_overrides: Vec<String>,
+
+    #[serde(default)]
+    pub include_dir_overrides: Vec<String>,
 }
 
 fn default_input_dir() -> String {
@@ -78,8 +86,11 @@ impl Config {
     }
 
     pub fn with_cli_overrides(mut self, cli: &Cli) -> Self {
-        if let Some(include) = &cli.include {
-            self.include_overrides = include.clone();
+        if let Some(include_files) = &cli.include_file {
+            self.include_file_overrides = include_files.clone();
+        }
+        if let Some(include_dirs) = &cli.include_dir {
+            self.include_dir_overrides = include_dirs.clone();
         }
         self
     }

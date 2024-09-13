@@ -26,9 +26,13 @@ pub struct Cli {
     #[arg(long, help = "Use plain text output format instead of Markdown")]
     pub plain_text: bool,
 
-    /// Files or directories to include, overriding ignore rules
-    #[arg(long, value_delimiter = ',')]
-    pub include: Option<Vec<String>>,
+    /// Files to include, overriding ignore rules
+    #[arg(long, value_delimiter = ',', name = "include_file", help = "Files to include, overriding ignore rules")]
+    pub include_file: Option<Vec<String>>,
+
+    /// Directories to include, overriding ignore rules
+    #[arg(long, value_delimiter = ',', name = "include_dir", help = "Directories to include, overriding ignore rules")]
+    pub include_dir: Option<Vec<String>>,
 }
 
 
@@ -93,7 +97,15 @@ pub fn run(cli: Cli) -> Result<()> {
     let files: HashSet<PathBuf> = crate::file_system_ops::list_files(&input_path)?;
     
     let ignore_rules = crate::ignore_rules::IgnoreRules::new(&config);
-    let filtered_files: Vec<PathBuf> = crate::ignore_rules::apply_ignore_rules(&ignore_rules, &files, &config.include_overrides);
+
+
+    let filtered_files: Vec<PathBuf> = crate::ignore_rules::apply_ignore_rules(
+        &ignore_rules,
+        &files,
+        &config.include_file_overrides,
+        &config.include_dir_overrides,
+        &input_path,
+    );
     
     let contents = crate::aggregator::aggregate_contents(&filtered_files, &input_path)?;
 

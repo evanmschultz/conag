@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use glob::Pattern;
 use crate::config::Config;
 use std::collections::HashSet;
@@ -42,18 +42,45 @@ impl IgnoreRules {
     }
 }
 
-pub fn apply_ignore_rules(ignore_rules: &IgnoreRules, files: &HashSet<PathBuf>, include_overrides: &[String]) -> Vec<PathBuf> {
-    files.iter()
+pub fn apply_ignore_rules(
+    ignore_rules: &IgnoreRules,
+    files: &HashSet<PathBuf>,
+    include_file_overrides: &[String],
+    include_dir_overrides: &[String],
+    input_dir: &Path,
+) -> Vec<PathBuf> {
+    files
+        .iter()
         .filter(|file| {
-            let file_name = file.file_name().and_then(|s| s.to_str()).unwrap_or("");
+            let relative_file = file.strip_prefix(input_dir).unwrap_or(file);
+            let file_str = relative_file.to_string_lossy();
+            let file_name = relative_file.file_name().and_then(|s| s.to_str()).unwrap_or("");
             let is_hidden = ignore_rules.ignore_hidden.matches(file_name);
-            let should_ignore = ignore_rules.rules.iter().any(|rule| rule.matches_path(file));
             let should_include_hidden = ignore_rules.include_hidden.iter().any(|pattern| pattern.matches(file_name));
-            let should_override = include_overrides.iter().any(|override_path| {
-                file.to_str().map_or(false, |f| f.contains(override_path))
+            let should_include_file = include_file_overrides.iter().any(|override_path| {
+                file_str == *override_path
+            });
+            let should_include_dir = include_dir_overrides.iter().any(|dir| {
+                relative_file.starts_with(dir)
             });
 
-            should_override || ((!is_hidden || should_include_hidden) && !should_ignore)
+            // Adjust should_ignore to skip directory-level ignores if directory is included
+            let should_ignore = ignore_rules.rules.iter().any(|rule| {
+                let rule_str = rule.as_str();
+                let is_dir_pattern = rule_str.ends_with("/*");
+                if is_dir_pattern && should_include_dir {
+                    // Skip directory-level ignore if directory is included
+                    false
+                } else {
+                    rule.matches_path(relative_file)
+                }
+            });
+
+            if should_include_file {
+                true
+            } else {
+                (!is_hidden || should_include_hidden) && !should_ignore
+            }
         })
         .cloned()
         .collect()
