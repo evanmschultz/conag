@@ -94,14 +94,14 @@ ignore_patterns = [
     "**/package-lock.json",
     "**/yarn.lock",
 
-    # Temporarily ignore the sh files
-    "**/*.sh"
+    # Ignore the sh files
+    # "**/*.sh"
 ]
 
 # Patterns for hidden files to include (empty by default)
 # Uncomment and add patterns if you want to include specific hidden files
 include_hidden_patterns = [
 #     ".gitignore",
-#     ".env.example",
+    "**/.github"
 ]
 
